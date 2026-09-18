@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# tmux-style fuzzy workspace switcher.
+# Runs inside a herdr plugin pane; exits (closing the pane) after switching.
+set -uo pipefail
+
+HERDR="${HERDR_BIN_PATH:-herdr}"
+ROOT="${HERDR_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+
+die() {
+    printf '\n  \033[31msession-popup:\033[0m %s\n\n  press any key...\n' "$1" >&2
+    read -rsn1 </dev/tty 2>/dev/null || sleep 5
+    exit 1
+}
+
+command -v fzf >/dev/null || die "fzf not found in PATH ($PATH)"
+
+# id<TAB>display  — display is what fzf shows, id is what we act on.
+rows=$("$HERDR" workspace list 2>/dev/null | python3 -c '
+import sys, json
+BOLD, DIM, CYAN, RST = "\033[1m", "\033[2m", "\033[36m", "\033[0m"
+DOTS = {"working": "\033[33m*" + RST, "idle": "\033[32m*" + RST,
+        "blocked": "\033[31m*" + RST}
+try:
+    wss = json.load(sys.stdin).get("result", {}).get("workspaces", [])
+except Exception:
+    sys.exit(0)
+for w in wss:
+    wid = w.get("workspace_id", "")
+    label = w.get("label") or wid
+    dot = DOTS.get(w.get("agent_status") or "", DIM + "-" + RST)
+    mark = BOLD + ">" + RST if w.get("focused") else " "
+    meta = "%d tab%s, %d pane%s" % (
+        w.get("tab_count", 0), "" if w.get("tab_count") == 1 else "s",
+        w.get("pane_count", 0), "" if w.get("pane_count") == 1 else "s")
+    disp = "%s %s %s%-2s%s %-22s %s%s%s" % (
+        mark, dot, CYAN, w.get("number", ""), RST, label, DIM, meta, RST)
+    print("%s\t%s" % (wid, disp))
+')
+
+[[ -z ${rows//[[:space:]]/} ]] && die "no workspaces returned by herdr"
+
+sel=$(printf '%s\n' "$rows" | fzf \
+    --ansi --with-nth=2.. --delimiter='\t' \
+    --height=100% --layout=reverse --info=inline \
+    --prompt='  workspace > ' \
+    --header='enter switch    esc cancel' \
+    --preview="'$ROOT/bin/preview' {1}" \
+    --preview-window='right,45%,border-left' \
+    | cut -f1)
+
+[[ -z ${sel:-} ]] && exit 0
+exec "$HERDR" workspace focus "$sel" >/dev/null

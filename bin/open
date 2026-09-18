@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Action entrypoint: opens the picker pane.
+# Exists because herdr 0.7.3 keybindings support `plugin_action` but not a
+# direct pane type — and routing through the CLI lets placement stay runtime
+# configurable instead of frozen in the manifest.
+set -uo pipefail
+
+HERDR="${HERDR_BIN_PATH:-herdr}"
+PLUGIN_ID="${HERDR_PLUGIN_ID:-vitor.session-popup}"
+
+# Placement precedence: env > config file > default.
+#   0.7.x: overlay | split | tab | zoomed
+#   0.9.x: adds popup
+placement="${SESSION_POPUP_PLACEMENT:-}"
+cfg="${HERDR_PLUGIN_CONFIG_DIR:-}/placement"
+if [[ -z $placement && -r $cfg ]]; then
+    placement=$(tr -d '[:space:]' < "$cfg")
+fi
+placement="${placement:-overlay}"
+
+exec "$HERDR" plugin pane open \
+    --plugin "$PLUGIN_ID" \
+    --entrypoint picker \
+    --placement "$placement" \
+    --focus

@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# fzf preview: show tabs/panes inside the given workspace.
+# argv: $1 = workspace_id
+set -uo pipefail
+HERDR="${HERDR_BIN_PATH:-herdr}"
+ws="${1:-}"
+[[ -z $ws ]] && exit 0
+
+"$HERDR" pane list --workspace "$ws" 2>/dev/null | python3 -c '
+import sys, json
+DIM, CYAN, RST = "\033[2m", "\033[36m", "\033[0m"
+DOTS = {"working": "\033[33m*" + RST, "idle": "\033[32m*" + RST,
+        "blocked": "\033[31m*" + RST}
+try:
+    panes = json.load(sys.stdin).get("result", {}).get("panes", [])
+except Exception:
+    sys.exit(0)
+if not panes:
+    print("  (no panes)")
+    sys.exit(0)
+print("  %d pane(s)\n" % len(panes))
+for p in panes:
+    label = p.get("label") or (DIM + "(unlabeled)" + RST)
+    dot = DOTS.get(p.get("agent_status") or "", DIM + "-" + RST)
+    pid = p.get("pane_id", "")
+    print("  %s %s%-7s%s %s" % (dot, CYAN, pid, RST, label))
+'
