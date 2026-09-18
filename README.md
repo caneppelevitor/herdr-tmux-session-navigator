@@ -5,20 +5,8 @@ A tmux `choose-tree` style workspace navigator for [herdr](https://herdr.dev).
 Press a key, get a collapsible tree of every workspace and its tabs, with live
 previews of what is actually running in each pane. Pick one, land there.
 
-```
-  enter switch    space collapse    ^a all    / search    ^x close    0-9 jump    esc quit
- (0)    - * web-app: 3 tabs  (attached)
- (1)    ├─> 1: editor*  (2 panes)
- (2)    ├─> 2: shell  (1 pane)
- (3)    └─> 3: logs  (1 pane)
- (4)    - * api-server: 4 tabs
- (5)    ├─> 1: server  (2 panes)
- (M-a)  └─> 4: tests  (1 pane)
-── web-app — tabs ──────────────────────────────────────────────────────────
-editor +1                  │shell                   │logs
-  1  export function App(  │➜ web-app git:(main)    │ [14:22] listening :3000
-  2                        │➜ web-app git:(main)    │ [14:22] GET /health 200
-```
+<img width="1512" height="982" alt="image" src="https://github.com/user-attachments/assets/779dbfb4-c086-4ef2-9ff1-0fad6df65335" />
+
 
 It is not a fuzzy launcher. It is the tmux session/window tree, for herdr.
 
