@@ -1,34 +1,36 @@
 id = "vitor.session-popup"
 name = "Session Popup"
-version = "0.1.0"
+version = "0.2.0"
 min_herdr_version = "0.7.0"
-description = "tmux-style fuzzy workspace switcher in a modal pane"
+description = "tmux choose-tree style workspace switcher with live panel previews"
 platforms = ["linux", "macos"]
 
-# Placement is capped by the herdr version:
-#   0.7.x -> overlay | split | tab | zoomed   (no popup)
-#   0.9.x -> adds "popup" (centered float, accepts width/height)
-# After `herdr update`, change placement to "popup" and add width/height.
+[[build]]
+command = ["go", "build", "-o", "bin/herdr-session-popup", "./cmd/picker"]
+
 [[actions]]
 id = "open"
 title = "Workspace picker"
 contexts = ["global"]
 command = ["bin/open"]
 
+# Placement is capped by the herdr version:
+#   0.7.x -> overlay | split | tab | zoomed   (no popup)
+#   0.9.x -> adds "popup" (centered float, accepts width/height)
+# bin/open resolves it at runtime, so upgrading needs no change here.
 [[panes]]
 id = "picker"
 title = "Workspaces"
 placement = "overlay"
 # Pane commands resolve against PATH (unlike action commands, which resolve
 # against the plugin root), so go through the injected HERDR_PLUGIN_ROOT.
-# -l (login shell) matters: a non-login shell lacks /opt/homebrew/bin, so fzf
-# would not resolve and the pane would die on startup.
-command = ["bash", "-lc", "exec \"$HERDR_PLUGIN_ROOT/bin/picker\""]
+# No login shell needed any more: the binary is static.
+command = ["bash", "-c", "exec \"$HERDR_PLUGIN_ROOT/bin/herdr-session-popup\""]
 
 # NOTE: herdr 0.7.3 ignores manifest keybindings (verified: `plugin list --json`
 # reports no keys). Bind in ~/.config/herdr/config.toml instead:
 #
 #   [[keys.command]]
 #   key = "prefix+s"
-#   type = "plugin_pane"
-#   command = "vitor.session-popup.picker"
+#   type = "plugin_action"
+#   command = "vitor.session-popup.open"

@@ -1,17 +1,27 @@
 # herdr session popup
 
-tmux-style fuzzy workspace switcher for [herdr](https://herdr.dev). Opens a modal
-pane with an fzf list of workspaces and a live preview of the panes inside each.
+tmux `choose-tree` for [herdr](https://herdr.dev). Collapsible workspace/tab tree
+with live panel previews, driven by the herdr event stream.
 
-    prefix + shift + f      (POC binding — see "Taking over prefix+s")
+Go + Bubble Tea. Talks the herdr unix socket directly — no CLI subprocesses, no
+polling: it subscribes to `events.subscribe` and re-renders when the server says
+something changed.
 
-    enter   switch to workspace
-    esc     cancel
+    prefix + shift + f      (POC binding -- see "Taking over prefix+s")
+
+    enter        switch to workspace / tab
+    space, tab   collapse or expand the workspace
+    left/right   collapse / expand
+    ctrl+a       collapse or expand all
+    0-9, M-a..   jump straight to a row (tmux choose-tree keys)
+    /            filter (matches workspace and tab labels)
+    ctrl+x       close the selected workspace
+    esc, q       cancel
 
 ## Requirements
 
 - herdr >= 0.7.0
-- fzf, python3 (both already required by herdr workflows here)
+- Go 1.24+ to build (runtime needs nothing -- static binary)
 - Linux or macOS
 
 ## Install
@@ -62,10 +72,14 @@ plugin, rebind the built-in first or the two will collide:
 
 ## Layout
 
-    herdr-plugin.toml    manifest: action + pane entrypoint
-    bin/open             action — opens the picker pane at the configured placement
-    bin/picker           the fzf UI; calls `herdr workspace focus` on select
-    bin/preview          fzf preview — lists panes + agent status per workspace
+    herdr-plugin.toml       manifest: build + action + pane entrypoint
+    bin/open                action -- opens the picker pane at the configured placement
+    cmd/picker/main.go      entrypoint: subscribe, run TUI, act on selection
+    internal/herdr/         socket client (request/response + event stream)
+    internal/ui/tree.go     row model, collapse state, tmux shortcut order
+    internal/ui/preview.go  panel strip: tabs for a workspace row, panes for a tab row
+    internal/ui/model.go    Bubble Tea state machine
+    internal/ui/view.go     rendering
 
 ## Notes from building this against 0.7.3
 
@@ -83,7 +97,30 @@ Things that cost time and are not obvious from the docs:
   `/usr/gnu/bin:/usr/local/bin:/bin:/usr/bin:.` with no Homebrew, so `fzf` is
   unresolvable and the pane dies instantly at startup.
 
+## Preview panels
+
+The strip under the tree mirrors tmux's preview row:
+
+- cursor on a **workspace** row -> one panel per tab, showing that tab's first pane
+- cursor on a **tab** row -> one panel per pane in that tab
+
+Panels are read with `pane.read` at `source: "visible"`, `format: "ansi"`, so each
+keeps its own colours. Columns are capped at a minimum width; overflow is
+reported as `+N more` rather than silently dropped.
+
+## Why a persistent socket
+
+`events.subscribe` pushes 24 event types (`workspace.*`, `tab.*`, `pane.*`,
+`layout.updated`). The earlier bash+fzf version could not consume them -- fzf owns
+the event loop and blocks -- so its tree was a snapshot that went stale the moment
+anything changed. Bubble Tea owns the loop here and treats an event as a cue to
+refetch, so the tree tracks the server.
+
+Per-pane subscriptions (`pane.agent_status_changed`, `pane.scroll_changed`,
+`pane.output_matched`) require a specific `pane_id` and are excluded; the
+parameter-free set covers structural change.
+
 ## Status
 
-POC. Workspaces only. Not yet: agent rows, zoxide dirs, create-on-miss,
-close-workspace binding.
+Workspaces and tabs. Not yet: agent rows as a third tree level, zoxide dirs,
+create-on-miss, rename in place.
