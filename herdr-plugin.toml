@@ -1,7 +1,11 @@
 id = "vitor.tmux-session-navigator"
 name = "tmux Session Navigator"
 version = "1.0.0"
-min_herdr_version = "0.7.0"
+# The oldest version this was actually verified against. The plugin system
+# itself landed in 0.7.0, but events.subscribe and pane.read's `source`
+# parameter were only confirmed on 0.7.3 -- claiming lower would let it
+# install onto a server where it breaks.
+min_herdr_version = "0.7.3"
 description = "tmux choose-tree style workspace and tab navigator with live pane previews"
 platforms = ["linux", "macos"]
 

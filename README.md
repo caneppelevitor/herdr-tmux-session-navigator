@@ -39,9 +39,10 @@ It is not a fuzzy launcher. It is the tmux session/window tree, for herdr.
 
 ## Requirements
 
-- herdr 0.7.0 or newer
+- herdr 0.7.3 or newer
 - Go 1.24+ to build
-- Linux or macOS
+- Linux or macOS — the client speaks herdr's unix socket directly; Windows uses
+  a named pipe instead, which is not implemented
 
 Nothing at run time — it is a single static binary talking to herdr's unix
 socket.
@@ -64,6 +65,14 @@ make link          # builds, then `herdr plugin link .`
 
 `herdr plugin link` does **not** run the manifest build step, so build first —
 that is what `make link` does.
+
+## Updating
+
+herdr has no `plugin update`; reinstall to pull a newer version:
+
+```sh
+herdr plugin install caneppelevitor/herdr-tmux-session-navigator
+```
 
 ## Add the keybinding
 
@@ -152,24 +161,6 @@ internal/ui/preview.go  panel strip
 internal/ui/model.go    Bubble Tea state machine
 internal/ui/view.go     rendering
 ```
-
-## Notes on herdr's plugin API
-
-Things worth knowing if you write your own plugin, learned building this
-against 0.7.3:
-
-- Keybindings in a plugin manifest are **silently ignored** — `plugin list
-  --json` shows no keys. They must live in the user's `config.toml`.
-- Config keybinding `type` accepts `shell`, `pane`, `plugin_action`. There is no
-  `plugin_pane` type, despite that string appearing in the binary.
-- **Action** commands resolve relative to the plugin root. **Pane** commands
-  resolve against `PATH`. Pane commands need `$HERDR_PLUGIN_ROOT`.
-- `pane.read` requires a `source` (`visible` / `recent` / `recent_unwrapped` /
-  `detection`) and nests its payload under a `read` key.
-- The socket closes after each request/response. `events.subscribe` needs its own
-  connection, with the subscribe call first.
-- `pane.agent_status_changed`, `pane.scroll_changed` and `pane.output_matched`
-  subscriptions require a specific `pane_id`; the rest are global.
 
 ## License
 
