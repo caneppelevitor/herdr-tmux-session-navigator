@@ -29,7 +29,25 @@ func (m Model) View() string {
 	b.WriteString(m.renderRule())
 	b.WriteString("\n")
 	b.WriteString(RenderPanels(m.panels, m.width, previewH))
+	if s := m.renderStatus(); s != "" {
+		b.WriteString("\n")
+		b.WriteString(s)
+	}
 	return b.String()
+}
+
+// renderStatus surfaces errors and confirmations. Without it, a failed call or
+// a dead event stream would be invisible.
+func (m Model) renderStatus() string {
+	if m.status == "" {
+		return ""
+	}
+	bg, fg := cBlocked, cSelFg
+	if m.pendingClose != "" {
+		bg = cSelBg
+	}
+	return lipgloss.NewStyle().Background(bg).Foreground(fg).Bold(true).
+		Render(padTo(" "+m.status, m.width))
 }
 
 func (m Model) renderHeader() string {

@@ -3,11 +3,20 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/caneppelevitor/herdr-tmux-session-navigator/internal/herdr"
 )
+
+// herdr emits events in bursts (a single split produces pane.created,
+// layout.updated, tab.focused...). Refetching per event would mean an N+1 call
+// storm, so events set a dirty flag and one refresh runs after this window.
+const coalesceWindow = 120 * time.Millisecond
+
+// resubscribeDelay backs off before reconnecting a dropped event stream.
+const resubscribeDelay = 2 * time.Second
 
 type snapshotMsg struct {
 	workspaces []herdr.Workspace
@@ -23,6 +32,11 @@ type panelsMsg struct {
 
 type eventMsg struct{ name string }
 type errMsg struct{ err error }
+type refreshMsg struct{}
+type resubscribeMsg struct {
+	events <-chan herdr.Event
+	err    error
+}
 
 // Model is the picker state. It refreshes from herdr events rather than
 // polling, so the tree reflects the server as it changes.
@@ -45,6 +59,8 @@ type Model struct {
 
 	width, height int
 	status        string
+	dirty         bool // an event arrived; a coalesced refresh is pending
+	pendingClose  string
 	quitting      bool
 	Chosen        Row
 	HasChosen     bool
@@ -177,16 +193,47 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.loadPanels()
 
 	case eventMsg:
-		// Any structural change invalidates the tree; refetch and keep listening.
-		return m, tea.Batch(m.loadSnapshot(), m.waitEvent())
+		// Coalesce bursts: mark dirty and schedule one refresh, rather than
+		// refetching the whole tree per event.
+		cmds := []tea.Cmd{m.waitEvent()}
+		if !m.dirty {
+			m.dirty = true
+			cmds = append(cmds, tea.Tick(coalesceWindow, func(time.Time) tea.Msg {
+				return refreshMsg{}
+			}))
+		}
+		return m, tea.Batch(cmds...)
+
+	case refreshMsg:
+		m.dirty = false
+		return m, m.loadSnapshot()
 
 	case panelsMsg:
 		m.panelKey, m.panels = msg.key, msg.panels
 		return m, nil
 
 	case errMsg:
+		// Most commonly the event stream closed. Report it and try to reconnect
+		// so the picker does not sit silently stale.
 		m.status = msg.err.Error()
-		return m, nil
+		return m, tea.Tick(resubscribeDelay, func(time.Time) tea.Msg {
+			ch := make(chan herdr.Event, 64)
+			if _, err := m.client.Subscribe(herdr.DefaultSubscriptions, ch); err != nil {
+				return resubscribeMsg{err: err}
+			}
+			return resubscribeMsg{events: ch}
+		})
+
+	case resubscribeMsg:
+		if msg.err != nil {
+			m.status = "reconnect failed: " + msg.err.Error()
+			return m, tea.Tick(resubscribeDelay, func(time.Time) tea.Msg {
+				return errMsg{fmt.Errorf("retrying")}
+			})
+		}
+		m.status = ""
+		m.events = msg.events
+		return m, tea.Batch(m.loadSnapshot(), m.waitEvent())
 
 	case tea.KeyMsg:
 		return m.handleKey(msg)
@@ -223,6 +270,12 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
+	}
+
+	// Any key other than a confirming ctrl+x aborts a pending close.
+	if m.pendingClose != "" && key != "ctrl+x" {
+		m.pendingClose = ""
+		m.status = ""
 	}
 
 	switch key {
@@ -294,14 +347,26 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case "ctrl+x":
+		// Closing a workspace kills its panes and cannot be undone, so require
+		// a second confirming keypress.
 		if len(m.rows) == 0 {
 			return m, nil
 		}
 		row := m.rows[m.cursor]
-		if row.Kind == RowWorkspace {
-			if err := m.client.CloseWorkspace(row.Workspace.ID); err != nil {
-				m.status = err.Error()
-			}
+		if row.Kind != RowWorkspace {
+			m.status = "select a workspace row to close"
+			return m, nil
+		}
+		if m.pendingClose != row.Workspace.ID {
+			m.pendingClose = row.Workspace.ID
+			m.status = fmt.Sprintf("close %q and all its panes? ctrl+x again to confirm, any other key cancels",
+				row.Workspace.Label)
+			return m, nil
+		}
+		m.pendingClose = ""
+		m.status = ""
+		if err := m.client.CloseWorkspace(row.Workspace.ID); err != nil {
+			m.status = err.Error()
 		}
 		return m, m.loadSnapshot()
 	}

@@ -104,7 +104,7 @@ workspace_picker = "prefix+ctrl+w"   # or "" to unset
 | `g` / `G` | first / last row |
 | `0`-`9`, `M-a`.. | jump straight to a row |
 | `/` | filter by workspace or tab label |
-| `ctrl+x` | close the selected workspace |
+| `ctrl+x` | close the selected workspace (press twice to confirm) |
 | `esc`, `q` | cancel |
 
 Digits are jump keys, as in tmux. Press `/` first if you want to search for

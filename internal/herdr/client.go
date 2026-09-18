@@ -8,6 +8,13 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
+)
+
+// Timeouts keep a wedged or unresponsive server from hanging the UI forever.
+const (
+	dialTimeout = 3 * time.Second
+	callTimeout = 5 * time.Second
 )
 
 // SocketPath resolves the server socket, preferring the env var herdr injects
@@ -43,11 +50,12 @@ func (c *Client) Call(method string, params any) (map[string]any, error) {
 	if params == nil {
 		params = map[string]any{}
 	}
-	conn, err := net.Dial("unix", c.path)
+	conn, err := net.DialTimeout("unix", c.path, dialTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("dial herdr socket: %w", err)
 	}
 	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(callTimeout))
 
 	enc := json.NewEncoder(conn)
 	if err := enc.Encode(request{ID: c.nextID(), Method: method, Params: params}); err != nil {
@@ -65,14 +73,23 @@ func (c *Client) Call(method string, params any) (map[string]any, error) {
 }
 
 // remap round-trips a result field through JSON into a typed value.
+//
+// A missing key is an error, not an empty value: if herdr renames a response
+// field, we want a visible failure rather than a silently empty tree.
 func remap[T any](result map[string]any, key string) (T, error) {
 	var out T
-	raw, err := json.Marshal(result[key])
+	v, ok := result[key]
+	if !ok {
+		return out, fmt.Errorf("response has no %q field (herdr API change?)", key)
+	}
+	raw, err := json.Marshal(v)
 	if err != nil {
 		return out, err
 	}
-	err = json.Unmarshal(raw, &out)
-	return out, err
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return out, fmt.Errorf("decode %q: %w", key, err)
+	}
+	return out, nil
 }
 
 func (c *Client) Workspaces() ([]Workspace, error) {
@@ -154,10 +171,12 @@ var DefaultSubscriptions = []string{
 // stop func is called or the server closes. Subscribe must be the first request
 // on its connection.
 func (c *Client) Subscribe(types []string, out chan<- Event) (stop func(), err error) {
-	conn, err := net.Dial("unix", c.path)
+	conn, err := net.DialTimeout("unix", c.path, dialTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("dial herdr socket: %w", err)
 	}
+	// Bound the handshake only; the stream itself must block indefinitely.
+	_ = conn.SetDeadline(time.Now().Add(callTimeout))
 
 	subs := make([]map[string]string, 0, len(types))
 	for _, t := range types {
@@ -180,7 +199,10 @@ func (c *Client) Subscribe(types []string, out chan<- Event) (stop func(), err e
 		conn.Close()
 		return nil, ack.Error
 	}
+	_ = conn.SetDeadline(time.Time{}) // stream has no deadline
 
+	// The goroutine owns `out` and closes it on stream end, which is how the UI
+	// learns the connection died and should resubscribe.
 	go func() {
 		defer conn.Close()
 		dec := json.NewDecoder(rd)
