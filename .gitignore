@@ -1,2 +1,9 @@
+# Built binary -- produced by `make` or herdr's [[build]] step on plugin install.
+/bin/
+
+# Go
+*.test
+*.out
+
+# macOS
 .DS_Store
-bin/herdr-session-popup

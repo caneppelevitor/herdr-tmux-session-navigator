@@ -1,36 +1,36 @@
-id = "vitor.session-popup"
-name = "Session Popup"
-version = "0.2.0"
+id = "vitor.tmux-session-navigator"
+name = "tmux Session Navigator"
+version = "1.0.0"
 min_herdr_version = "0.7.0"
-description = "tmux choose-tree style workspace switcher with live panel previews"
+description = "tmux choose-tree style workspace and tab navigator with live pane previews"
 platforms = ["linux", "macos"]
 
+# herdr runs this on `plugin install`. `plugin link` does NOT run builds --
+# build manually when developing (see the Makefile).
 [[build]]
-command = ["go", "build", "-o", "bin/herdr-session-popup", "./cmd/picker"]
+command = ["go", "build", "-o", "bin/herdr-tmux-session-navigator", "./cmd/navigator"]
 
+# Bound to a key in the user's config.toml (see README). Action commands resolve
+# relative to the plugin root, so this path needs no indirection.
 [[actions]]
 id = "open"
-title = "Workspace picker"
+title = "Workspace navigator"
 contexts = ["global"]
-command = ["bin/open"]
+command = ["bin/herdr-tmux-session-navigator", "--open"]
 
-# Placement is capped by the herdr version:
-#   0.7.x -> overlay | split | tab | zoomed   (no popup)
-#   0.9.x -> adds "popup" (centered float, accepts width/height)
-# bin/open resolves it at runtime, so upgrading needs no change here.
+# placement here is the manifest default only; the binary resolves it at run
+# time (env HERDR_NAVIGATOR_PLACEMENT, then the plugin config dir), so herdr
+# 0.9+ users can switch to "popup" without editing this file.
+#   0.7.x: overlay | split | tab | zoomed
+#   0.9+ : adds popup (centred float)
 [[panes]]
 id = "picker"
 title = "Workspaces"
 placement = "overlay"
 # Pane commands resolve against PATH (unlike action commands, which resolve
 # against the plugin root), so go through the injected HERDR_PLUGIN_ROOT.
-# No login shell needed any more: the binary is static.
-command = ["bash", "-c", "exec \"$HERDR_PLUGIN_ROOT/bin/herdr-session-popup\""]
+command = ["bash", "-c", "exec \"$HERDR_PLUGIN_ROOT/bin/herdr-tmux-session-navigator\""]
 
-# NOTE: herdr 0.7.3 ignores manifest keybindings (verified: `plugin list --json`
-# reports no keys). Bind in ~/.config/herdr/config.toml instead:
-#
-#   [[keys.command]]
-#   key = "prefix+s"
-#   type = "plugin_action"
-#   command = "vitor.session-popup.open"
+# NOTE: herdr 0.7.3 ignores keybindings declared in a plugin manifest -- verified
+# via `herdr plugin list --json`, which reports no keys. Bind in your own
+# ~/.config/herdr/config.toml instead; see the README.

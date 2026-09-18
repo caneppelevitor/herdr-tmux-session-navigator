@@ -3,7 +3,7 @@ package ui
 import (
 	"testing"
 
-	"github.com/caneppelevitor/herdr-session-popup/internal/herdr"
+	"github.com/caneppelevitor/herdr-tmux-session-navigator/internal/herdr"
 )
 
 func fixture() ([]herdr.Workspace, map[string][]herdr.Tab) {

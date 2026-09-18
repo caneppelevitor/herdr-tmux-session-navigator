@@ -1,4 +1,4 @@
-module github.com/caneppelevitor/herdr-session-popup
+module github.com/caneppelevitor/herdr-tmux-session-navigator
 
 go 1.24.2
 

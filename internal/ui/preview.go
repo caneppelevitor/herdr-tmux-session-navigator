@@ -5,7 +5,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/caneppelevitor/herdr-session-popup/internal/herdr"
+	"github.com/caneppelevitor/herdr-tmux-session-navigator/internal/herdr"
 )
 
 // Panel is one column in the preview strip.

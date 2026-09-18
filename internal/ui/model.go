@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/caneppelevitor/herdr-session-popup/internal/herdr"
+	"github.com/caneppelevitor/herdr-tmux-session-navigator/internal/herdr"
 )
 
 type snapshotMsg struct {
